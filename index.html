@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PH4NTOMX ULTRA INJECTOR V5</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
+    <style>
+        :root { --neon: #00ffff; --red: #ff4757; --green: #2ed573; --bg: #010103; }
+        body { background: var(--bg); color: #fff; font-family: 'Rajdhani', sans-serif; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        
+        .injector-box { width: 340px; background: #0a0a12; border: 2px solid var(--neon); border-radius: 25px; padding: 25px; text-align: center; box-shadow: 0 0 25px rgba(0, 255, 255, 0.3); position: relative; }
+        
+        .title { font-family: 'Orbitron'; font-size: 16px; color: var(--neon); letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 10px var(--neon); }
+
+        /* Main Result Display */
+        .circle-main { width: 110px; height: 110px; border-radius: 50%; border: 5px solid var(--neon); margin: 15px auto; display: flex; align-items: center; justify-content: center; font-size: 60px; font-family: 'Orbitron'; background: radial-gradient(circle, #111, #000); box-shadow: 0 0 20px var(--neon); }
+
+        .timer { font-size: 26px; color: #ffa502; font-family: 'Orbitron'; margin: 5px 0; }
+        
+        /* Status Display */
+        .status-panel { background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; margin-top: 15px; border: 1px solid #1a1a2e; }
+        .win-status { color: var(--green); font-size: 20px; font-weight: bold; display: none; text-shadow: 0 0 10px var(--green); }
+        .loss-status { color: var(--red); font-size: 20px; font-weight: bold; display: none; text-shadow: 0 0 10px var(--red); }
+        .analyzing { font-size: 12px; color: #aaa; }
+
+        .issue-info { font-size: 13px; color: #888; margin-bottom: 5px; }
+        
+        /* Mini History */
+        .history-mini { display: flex; justify-content: center; gap: 8px; margin-top: 15px; font-size: 10px; }
+        .history-dot { padding: 4px 8px; border-radius: 4px; background: #222; }
+    </style>
+</head>
+<body>
+
+<div class="injector-box">
+    <div class="title">ULTRA INJECTOR V5</div>
+    
+    <div class="issue-info">TARGET ISSUE: <span id="target-id" style="color:#fff">--</span></div>
+    
+    <div id="v-num" class="circle-main">?</div>
+    
+    <div id="timer" class="timer">00:30</div>
+
+    <div class="status-panel">
+        <div id="res-msg">READY TO INJECT</div>
+        <div id="win-msg" class="win-status">WIN ✅</div>
+        <div id="loss-msg" class="loss-status">WAITING NEXT...</div>
+    </div>
+
+    <div class="history-mini" id="mini-h">
+        </div>
+</div>
+
+<script>
+    let lastNum = localStorage.getItem('v5_num');
+    let lastIssue = localStorage.getItem('v5_issue');
+    let historyStatus = JSON.parse(localStorage.getItem('v5_h')) || [];
+
+    async function runInjector() {
+        try {
+            const res = await fetch("https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json");
+            const data = await res.json();
+            const list = data.data.list;
+            const currentRes = list[0];
+
+            // ১. রেজাল্ট ভেরিফাই করা (WIN/LOSS)
+            if (lastIssue === currentRes.issueNumber) {
+                let status = (parseInt(lastNum) === parseInt(currentRes.number)) ? "W" : "L";
+                historyStatus.unshift(status);
+                if(historyStatus.length > 5) historyStatus.pop();
+                localStorage.setItem('v5_h', JSON.stringify(historyStatus));
+                updateStatusUI(status);
+            }
+
+            // ২. সুপার পাওয়ারফুল নম্বর প্রেডিকশন
+            // লজিক: ট্রেন্ড এবং গ্যাপ এনালাইসিস একসাথে
+            let historyNumbers = list.slice(0, 40).map(i => parseInt(i.number));
+            let counts = {};
+            for(let i=0; i<=9; i++) counts[i] = 0;
+            historyNumbers.forEach(n => counts[n]++);
+
+            // সবথেকে 'কোল্ড' বা গ্যাপ থাকা নম্বরটি বের করা
+            let sorted = Object.keys(counts).sort((a, b) => counts[a] - counts[b]);
+            let predicted = sorted[0]; 
+
+            // পরবর্তী রাউন্ডের ডাটা সেভ
+            let nextIssue = (BigInt(currentRes.issueNumber) + 1n).toString();
+            document.getElementById("v-num").innerText = predicted;
+            document.getElementById("target-id").innerText = nextIssue;
+
+            localStorage.setItem('v5_num', predicted);
+            localStorage.setItem('v5_issue', nextIssue);
+            lastNum = predicted;
+            lastIssue = nextIssue;
+
+            updateHistoryDots();
+
+        } catch (e) { console.log("Network Error"); }
+    }
+
+    function updateStatusUI(type) {
+        const win = document.getElementById("win-msg");
+        const loss = document.getElementById("loss-msg");
+        const msg = document.getElementById("res-msg");
+
+        msg.style.display = "none";
+        if (type === "W") {
+            win.style.display = "block";
+            loss.style.display = "none";
+        } else {
+            win.style.display = "none";
+            loss.style.display = "block";
+        }
+    }
+
+    function updateHistoryDots() {
+        let html = "";
+        historyStatus.forEach(s => {
+            let color = s === "W" ? "var(--green)" : "var(--red)";
+            html += `<div class="history-dot" style="color:${color}">${s === "W" ? "WIN" : "LOSS"}</div>`;
+        });
+        document.getElementById("mini-h").innerHTML = html;
+    }
+
+    setInterval(() => {
+        let s = 30 - (new Date().getSeconds() % 30);
+        document.getElementById("timer").innerText = `00:${s < 10 ? '0'+s : s}`;
+        
+        if (s === 29) {
+            document.getElementById("win-msg").style.display = "none";
+            document.getElementById("loss-msg").style.display = "none";
+            document.getElementById("res-msg").style.display = "block";
+            document.getElementById("res-msg").innerText = "INJECTING NEW DATA...";
+            runInjector();
+        }
+    }, 1000);
+
+    runInjector();
+    updateHistoryDots();
+</script>
+</body>
+</html>
